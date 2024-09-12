@@ -1,2 +1,2 @@
-# nostromo
-Nostromo, an object storage like backend API
+# Nostromo
+Nostromo, an object "storage like", backend API
