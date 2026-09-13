@@ -1,21 +1,28 @@
-/.phpunit.cache
-/node_modules
-/public/build
-/public/hot
-/public/storage
-/storage/*.key
-/vendor
+# Dependencies and build artifacts
+node_modules/
+dist/
+build/
+
+# PocketBase runtime data (never commit databases or uploaded files)
+pocketbase
+pocketbase.exe
+pb_data/
+pb_public/
+pb_migrations/*.go
+*.zip
+
+# Environment and secrets
 .env
-.env.backup
-.env.production
-.phpactor.json
-.phpunit.result.cache
-Homestead.json
-Homestead.yaml
-auth.json
-npm-debug.log
-yarn-error.log
-/.fleet
-/.idea
-/.vscode
-/.zed
+.env.*
+!.env.example
+
+# Logs and caches
+*.log
+.cache/
+coverage/
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

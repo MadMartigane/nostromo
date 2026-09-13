@@ -1,70 +1,88 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Nostromo
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## About Laravel
+> A shared cargo for your apps. Nostromo is a multi-app backend, powered by [PocketBase](https://pocketbase.io/).
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+Nostromo is named after the commercial towing vessel from *Alien*: like the ship, this project carries
+what your applications need so they can focus on their own mission.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Why Nostromo?
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+Several of our applications follow the same pattern:
 
-## Learning Laravel
+- They work **offline-first**: all data lives in the browser (localStorage / IndexedDB).
+- They offer a manual **import/export** flow to back up or hand over work.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+This works fine for a handful of users, but it does not scale. Nostromo provides the missing piece:
+a **shared PocketBase backend** handling authentication, data storage, and sync, so each app can move
+from "local files" to "real accounts and cloud sync" without owning a backend.
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+## First client: ballerStats
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+The first app on board is [ballerStats](https://github.com/MadMartigane/ballerStats), a basketball
+statistics collector. Its PocketBase proof of concept defines the initial collections, access rules,
+and sync engine that Nostromo generalizes.
 
-## Laravel Sponsors
+## Repository layout
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+```
+nostromo/
+├── docs/               # Design documents and analysis
+├── infra/
+│   └── pocketbase/     # PocketBase setup: migrations, hooks, scripts
+├── AGENTS.md           # Guidelines for AI coding agents
+├── LICENSE             # MIT
+└── README.md
+```
 
-### Premium Partners
+## Getting started
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+Prerequisites: any Linux/macOS/Windows machine with `bash` and internet access for the first run.
+
+```bash
+# Download the PocketBase binary (once)
+bash infra/pocketbase/scripts/download.sh
+
+# Start PocketBase (serves http://127.0.0.1:8090, applies migrations)
+bash infra/pocketbase/scripts/serve.sh
+
+# In another terminal: create the superuser and demo data
+bash infra/pocketbase/scripts/bootstrap.sh
+```
+
+- Admin UI: http://127.0.0.1:8090/_/
+- API: http://127.0.0.1:8090/api/ (docs at http://127.0.0.1:8090/api/docs)
+
+> Everything under `infra/pocketbase/` targets local development. Development credentials and
+> demo data must never reach production.
+
+## Documentation
+
+- [PocketBase POC analysis (ballerStats)](docs/pocketbase-poc-analysis.md)
+
+## Principles
+
+- **Offline-first clients**: the backend augments local-first apps, it never replaces their local store.
+- **One backend, many apps**: app-specific logic stays isolated (namespaced routes, hooks) so future
+  apps can board without touching existing ones.
+- **Infra as code**: collections, API rules and hooks are versioned migrations, reproducible from a
+  fresh clone.
+
+## Roadmap
+
+- [x] Repository cleanup and project setup
+- [ ] BallerStats POC analysis and design decisions
+- [ ] Generic multi-app collections model
+- [ ] ballerStats backend support (collections, rules, hooks)
+- [ ] Production deployment guide
 
 ## Contributing
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## Inspirations
-
-<https://medium.com/@vidvatek/laravel-10-rest-api-authentication-using-sanctum-d94a861a5ef9>
+Branching model: `main` is the stable branch, `develop` is the integration branch, features branch
+off `develop` as `feat/...`. All written documentation is in English. Commits follow
+[Conventional Commits](https://www.conventionalcommits.org/).
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+[MIT](LICENSE)
