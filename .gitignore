@@ -3,10 +3,12 @@ node_modules/
 dist/
 build/
 
-# PocketBase runtime data (never commit databases or uploaded files)
-pocketbase
-pocketbase.exe
-pb_data/
+# PocketBase runtime data (never commit databases or uploaded files).
+# These paths are anchored on purpose: a bare `pocketbase` pattern matches at any
+# depth in gitignore syntax, which would also ignore the whole infra/pocketbase/ tree.
+infra/pocketbase/pocketbase
+infra/pocketbase/pocketbase.exe
+infra/pocketbase/pb_data/
 pb_public/
 pb_migrations/*.go
 *.zip
