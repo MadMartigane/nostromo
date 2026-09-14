@@ -1,7 +1,9 @@
 # PocketBase POC Analysis (ballerStats)
 
-> Status: **analysis only** — this document grounds the phase 3 discussion about which POC
-> decisions Nostromo should keep, adapt, or reject. Nothing here is a final decision.
+> Status: **historical analysis**. Phase 3 has reframed the target: Nostromo is a generic core
+> (auth, file storage, document access control) with zero app knowledge. The final decisions are
+> recorded in `docs/decisions.md`. The drift list below is retained as historical analysis of the
+> POC, not as the Nostromo design.
 >
 > Sources:
 > - `ballerStats` branch `pocketbase` (POC, 212 files changed, +10 737 / −3 391 vs `develop`)
@@ -166,6 +168,9 @@ Each drift: what the POC did → why it deserves challenge → options for Nostr
   ACL expressiveness).
 
 ### D3 — Club concept was ripped out of the app
+
+> Chronology correction: the POC **predates** the club feature. The app's `develop` branch later
+> added a local club model, and `develop` is the source of truth for the club data structure.
 
 - **POC**: `src/libs/club/` + `src/libs/stores/` deleted; club comes from auth; one club per user
   (v1 assumption hardcoded in `auth.resolveMembership` and the invite hook).

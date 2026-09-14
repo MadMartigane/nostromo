@@ -38,8 +38,8 @@ nostromo/
 
 - Collections, API rules and settings changes go through **versioned migrations** in
   `infra/pocketbase/pb_migrations/`, never through manual Admin UI edits in shared envs
-- App-specific custom routes and hooks must be namespaced per app (e.g. `/api/<app>/...`)
-  so multiple apps can share the same instance
+- App-specific custom routes and hooks must be namespaced per app under `/nostromo/<app>/...`
+  (no `/api/` prefix for custom routes) so multiple apps can share the same instance
 - Local dev scripts must be idempotent and never create real credentials for production
 
 ## Commands
