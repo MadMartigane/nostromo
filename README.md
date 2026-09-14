@@ -21,8 +21,9 @@ from "local files" to "real accounts and cloud sync" without owning a backend.
 ## First client: ballerStats
 
 The first app on board is [ballerStats](https://github.com/MadMartigane/ballerStats), a basketball
-statistics collector. Its PocketBase proof of concept defines the initial collections, access rules,
-and sync engine that Nostromo generalizes.
+statistics collector. Its PocketBase proof of concept informed the design analysis; Nostromo
+itself is a generic core (auth, storage, document access control) that carries no app knowledge.
+See [decisions](docs/decisions.md).
 
 ## Repository layout
 
@@ -30,7 +31,10 @@ and sync engine that Nostromo generalizes.
 nostromo/
 ├── docs/               # Design documents and analysis
 ├── infra/
-│   └── pocketbase/     # PocketBase setup: migrations, hooks, scripts
+│   └── pocketbase/     # PocketBase setup (see infra/pocketbase/README.md)
+│       ├── pb_migrations/  # Versioned JS migrations (collections, rules)
+│       ├── pb_hooks/       # Versioned JS hooks (custom routes, record logic)
+│       └── scripts/        # Dev scripts: download, serve, bootstrap, smoke
 ├── AGENTS.md           # Guidelines for AI coding agents
 ├── LICENSE             # MIT
 └── README.md
@@ -47,8 +51,11 @@ bash infra/pocketbase/scripts/download.sh
 # Start PocketBase (serves http://127.0.0.1:8090, applies migrations)
 bash infra/pocketbase/scripts/serve.sh
 
-# In another terminal: create the superuser and demo data
+# In another terminal: create the superuser and the first user (idempotent)
 bash infra/pocketbase/scripts/bootstrap.sh
+
+# End-to-end contract check (clear PASS/FAIL per line, non-zero exit on failure)
+bash infra/pocketbase/scripts/smoke.sh
 ```
 
 - Admin UI: http://127.0.0.1:8090/_/
@@ -59,7 +66,12 @@ bash infra/pocketbase/scripts/bootstrap.sh
 
 ## Documentation
 
+- [Design decisions](docs/decisions.md)
+- [Phase 4 plan: build the Nostromo core](docs/phase-4-plan.md)
+- [Deployment note](docs/deployment.md)
+- [App integration handoff](docs/app-integration-handoff.md)
 - [PocketBase POC analysis (ballerStats)](docs/pocketbase-poc-analysis.md)
+- [PocketBase setup](infra/pocketbase/README.md)
 
 ## Principles
 
@@ -72,10 +84,10 @@ bash infra/pocketbase/scripts/bootstrap.sh
 ## Roadmap
 
 - [x] Repository cleanup and project setup
-- [ ] BallerStats POC analysis and design decisions
-- [ ] Generic multi-app collections model
-- [ ] ballerStats backend support (collections, rules, hooks)
-- [ ] Production deployment guide
+- [x] BallerStats POC analysis and design decisions
+- [ ] Phase 4: build the Nostromo core (in progress: collections, rules, hooks, dev scripts,
+      smoke test)
+- [ ] Production server configuration (nginx, TLS) on the marius.click host
 
 ## Contributing
 
