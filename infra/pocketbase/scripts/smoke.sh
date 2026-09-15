@@ -134,6 +134,8 @@ alice_email="alice+${suffix}@nostromo.test"
 alice_name="Smoke Alice ${suffix}"
 bob_email="bob+${suffix}@nostromo.test"
 bob_name="Smoke Bob ${suffix}"
+carol_email="carol+${suffix}@nostromo.test"
+carol_name="Smoke Carol ${suffix}"
 group_name="smoke-group-${suffix}"
 unrelated_id="$(python3 -c 'import secrets,string;a=string.ascii_lowercase+string.digits;print("".join(secrets.choice(a) for _ in range(15)))')"
 
@@ -319,23 +321,108 @@ ok=1
 [[ "$upload_status" == "200" && -n "$file_name" ]] && ok=0
 check 17 "alice uploads a file to the document via multipart PATCH" "$ok" "status=$upload_status file=$file_name body=$(body_snippet "$TMP/upload.json")"
 
-# --- 18. bob downloads the file and the bytes match ------------------------------------
-
+# --- 18. alice downloads the file via a file token and the bytes match -----------------
+#
+# The `file` field is protected (migration 005): a download needs a short-lived file token
+# from POST /api/files/token, sent with the caller's Authorization header and passed as
+# `?token=` on the file URL. A plain Authorization header on the file URL is NOT sufficient;
+# the anonymous case is the regression guard in check 21.
 if [[ -n "$file_name" ]]; then
-  download_status="$(curl -sS -o "$TMP/downloaded.bin" -w '%{http_code}' \
-    -H "Authorization: $bob_token" \
-    "$BASE_URL/api/files/documents/$doc_id/$file_name" || true)"
+  file_token_status="$(curl -sS -X POST -o "$TMP/file_token.json" -w '%{http_code}' \
+    -H "Authorization: $alice_token" \
+    "$BASE_URL/api/files/token" || true)"
+  file_token="$(json_get "$TMP/file_token.json" token)"
+  if [[ -n "$file_token" ]]; then
+    download_status="$(curl -sS -o "$TMP/downloaded.bin" -w '%{http_code}' \
+      "$BASE_URL/api/files/documents/$doc_id/$file_name?token=$file_token" || true)"
+  else
+    download_status="no-token"
+  fi
 else
+  file_token_status="skipped"
   download_status="skipped"
 fi
-if [[ "$download_status" == "200" && -f "$TMP/downloaded.bin" ]] && cmp -s "$TMP/upload.bin" "$TMP/downloaded.bin"; then
+if [[ "$file_token_status" == "200" && "$download_status" == "200" && -f "$TMP/downloaded.bin" ]] && cmp -s "$TMP/upload.bin" "$TMP/downloaded.bin"; then
   ok=0
 else
   ok=1
 fi
-check 18 "bob downloads the file with his token, bytes match" "$ok" "status=$download_status"
+check 18 "alice downloads the file via a file token, bytes match" "$ok" "token=$file_token_status download=$download_status"
 
-# --- 19. bob enriches alice ------------------------------------------------------------
+# --- 19. bob (group-granted reader) downloads via his own file token -------------------
+#
+# Protected file access is VIEW-RULE based, not owner based: bob holds a write grant through a
+# group (checks 11 and 16), so his OWN file token must fetch alice's file, byte for byte. A valid
+# token from a caller without access is the rejected case in check 20.
+if [[ -n "$file_name" ]]; then
+  bob_token_status="$(curl -sS -X POST -o "$TMP/bob_file_token.json" -w '%{http_code}' \
+    -H "Authorization: $bob_token" \
+    "$BASE_URL/api/files/token" || true)"
+  bob_file_token="$(json_get "$TMP/bob_file_token.json" token)"
+  if [[ -n "$bob_file_token" ]]; then
+    bob_download_status="$(curl -sS -o "$TMP/bob_downloaded.bin" -w '%{http_code}' \
+      "$BASE_URL/api/files/documents/$doc_id/$file_name?token=$bob_file_token" || true)"
+  else
+    bob_download_status="no-token"
+  fi
+else
+  bob_token_status="skipped"
+  bob_download_status="skipped"
+fi
+if [[ "$bob_token_status" == "200" && "$bob_download_status" == "200" && -f "$TMP/bob_downloaded.bin" ]] && cmp -s "$TMP/upload.bin" "$TMP/bob_downloaded.bin"; then
+  ok=0
+else
+  ok=1
+fi
+check 19 "bob (group-granted) downloads via his own file token, bytes match" "$ok" "token=$bob_token_status download=$bob_download_status"
+
+# --- 20. carol's valid file token does not grant access --------------------------------
+#
+# The other security-defining direction: a valid token proves WHO is asking, the viewRule decides
+# WHETHER they may read. Carol is invited and authenticated but shares no group and no access row
+# with alice's document, so her own freshly minted file token must NOT fetch the bytes.
+invite_carol_status="$(api_json POST /nostromo/invite "$SUPER_TOKEN" "$TMP/invite_carol.json" \
+  "$(json_body email "$carol_email" name "$carol_name")")"
+carol_id="$(json_get "$TMP/invite_carol.json" userId)"
+carol_password="$(json_get "$TMP/invite_carol.json" password)"
+carol_auth_status="$(api_json POST /api/collections/users/auth-with-password "" "$TMP/carol_auth.json" \
+  "$(json_body identity "$carol_email" password "$carol_password")")"
+carol_token="$(json_get "$TMP/carol_auth.json" token)"
+carol_token_status="skipped"
+carol_download_status="skipped"
+if [[ -n "$file_name" && -n "$carol_token" ]]; then
+  carol_token_status="$(curl -sS -X POST -o "$TMP/carol_file_token.json" -w '%{http_code}' \
+    -H "Authorization: $carol_token" \
+    "$BASE_URL/api/files/token" || true)"
+  carol_file_token="$(json_get "$TMP/carol_file_token.json" token)"
+  if [[ -n "$carol_file_token" ]]; then
+    carol_download_status="$(curl -sS -o "$TMP/carol_downloaded.bin" -w '%{http_code}' \
+      "$BASE_URL/api/files/documents/$doc_id/$file_name?token=$carol_file_token" || true)"
+  fi
+fi
+ok=1
+[[ "$invite_carol_status" == "200" && -n "$carol_id" && -n "$carol_password" && \
+   "$carol_auth_status" == "200" && -n "$carol_token" && \
+   "$carol_token_status" == "200" && "$carol_download_status" == "404" ]] && ok=0
+check 20 "carol's valid file token on alice's file returns 404 (no access)" "$ok" "invite=$invite_carol_status auth=$carol_auth_status token=$carol_token_status download=$carol_download_status"
+
+# --- 21. anonymous file download is denied (protected-field regression guard) ----------
+#
+# Before migration 005 the file URL was a capability: an anonymous GET returned 200 with the
+# bytes. With the `file` field protected an anonymous GET with no token must return 404. This runs
+# while the document and file still exist (deletion is checks 26-27); a missing file would 404 for
+# the wrong reason and make the guard meaningless.
+if [[ -n "$file_name" ]]; then
+  anon_file_status="$(curl -sS -o "$TMP/anon_file.bin" -w '%{http_code}' \
+    "$BASE_URL/api/files/documents/$doc_id/$file_name" || true)"
+else
+  anon_file_status="skipped"
+fi
+ok=1
+[[ "$anon_file_status" == "404" ]] && ok=0
+check 21 "anonymous file download returns 404 (protected)" "$ok" "status=$anon_file_status"
+
+# --- 22. bob enriches alice ------------------------------------------------------------
 
 status="$(api_json POST /nostromo/users/enrich "$bob_token" "$TMP/enrich_alice.json" \
   "$(python3 -c 'import json,sys;print(json.dumps({"ids":[sys.argv[1]]}))' "$alice_id")")"
@@ -343,18 +430,18 @@ enriched_id="$(json_get "$TMP/enrich_alice.json" 'users[0].id')"
 enriched_name="$(json_get "$TMP/enrich_alice.json" 'users[0].name')"
 ok=1
 [[ "$status" == "200" && "$enriched_id" == "$alice_id" && "$enriched_name" == "$alice_name" ]] && ok=0
-check 19 "bob enrich [alice] returns alice's id and name" "$ok" "status=$status body=$(body_snippet "$TMP/enrich_alice.json")"
+check 22 "bob enrich [alice] returns alice's id and name" "$ok" "status=$status body=$(body_snippet "$TMP/enrich_alice.json")"
 
-# --- 20. bob enriches an unrelated id --------------------------------------------------
+# --- 23. bob enriches an unrelated id --------------------------------------------------
 
 status="$(api_json POST /nostromo/users/enrich "$bob_token" "$TMP/enrich_none.json" \
   "$(python3 -c 'import json,sys;print(json.dumps({"ids":[sys.argv[1]]}))' "$unrelated_id")")"
 enriched_count="$(json_get "$TMP/enrich_none.json" users | tr -d '[:space:]')"
 ok=1
 [[ "$status" == "200" && "$enriched_count" == "[]" ]] && ok=0
-check 20 "bob enrich of an unrelated id returns an empty list" "$ok" "status=$status users=$enriched_count body=$(body_snippet "$TMP/enrich_none.json")"
+check 23 "bob enrich of an unrelated id returns an empty list" "$ok" "status=$status users=$enriched_count body=$(body_snippet "$TMP/enrich_none.json")"
 
-# --- 21. unauthenticated create is rejected --------------------------------------------
+# --- 24. unauthenticated create is rejected --------------------------------------------
 
 # PocketBase 0.40.4 answers this with 400 and the message "Failed to create record."
 # (verified live): a create whose createRule fails is a validation error, not a 401/403.
@@ -365,9 +452,9 @@ status="$(api_json POST /api/collections/documents/records "" "$TMP/anon_create.
 anon_message="$(json_get "$TMP/anon_create.json" message)"
 ok=1
 [[ "$status" == "400" && "$anon_message" == "Failed to create record." ]] && ok=0
-check 21 "unauthenticated document create is rejected with 400" "$ok" "status=$status message=$anon_message body=$(body_snippet "$TMP/anon_create.json")"
+check 24 "unauthenticated document create is rejected with 400" "$ok" "status=$status message=$anon_message body=$(body_snippet "$TMP/anon_create.json")"
 
-# --- 22. read-only group member cannot delete the document -----------------------------
+# --- 25. read-only group member cannot delete the document -----------------------------
 #
 # Check 16 flipped bob's access row to write. Flip it back to read so bob is a read-level
 # group member here: a delete needs the write right, so the rule must deny it. The denial
@@ -377,18 +464,18 @@ flip_read_status="$(api_json PATCH "/api/collections/document_access/records/$ac
 status="$(api_json DELETE "/api/collections/documents/records/$doc_id" "$bob_token" "$TMP/bob_delete.json")"
 ok=1
 [[ "$flip_read_status" == "200" && "$status" == "404" ]] && ok=0
-check 22 "bob (read-only) cannot delete the document, rule denies with 404" "$ok" "flip=$flip_read_status status=$status body=$(body_snippet "$TMP/bob_delete.json")"
+check 25 "bob (read-only) cannot delete the document, rule denies with 404" "$ok" "flip=$flip_read_status status=$status body=$(body_snippet "$TMP/bob_delete.json")"
 
-# --- 23. owner deletes a document that has an access row -------------------------------
+# --- 26. owner deletes a document that has an access row -------------------------------
 #
 # Regression guard for the cascade-delete defect: before the fix this returned 400
 # ("... not part of a required relation reference.") even for the owner.
 status="$(api_json DELETE "/api/collections/documents/records/$doc_id" "$alice_token" "$TMP/alice_delete.json")"
 ok=1
 [[ "$status" == "204" ]] && ok=0
-check 23 "alice deletes her document that still has an access row (204)" "$ok" "status=$status body=$(body_snippet "$TMP/alice_delete.json")"
+check 26 "alice deletes her document that still has an access row (204)" "$ok" "status=$status body=$(body_snippet "$TMP/alice_delete.json")"
 
-# --- 24. document gone for owner and group member; access row cascaded -----------------
+# --- 27. document gone for owner and group member; access row cascaded -----------------
 alice_delete_view="$(api_json GET "/api/collections/documents/records/$doc_id" "$alice_token" "$TMP/alice_view_gone.json")"
 bob_gone_view="$(api_json GET "/api/collections/documents/records/$doc_id" "$bob_token" "$TMP/bob_view_gone.json")"
 access_list_status="$(curl -sS -G -o "$TMP/access_list.json" -w '%{http_code}' \
@@ -399,7 +486,7 @@ access_list_status="$(curl -sS -G -o "$TMP/access_list.json" -w '%{http_code}' \
 access_list_total="$(json_get "$TMP/access_list.json" totalItems)"
 ok=1
 [[ "$alice_delete_view" == "404" && "$bob_gone_view" == "404" && "$access_list_status" == "200" && "$access_list_total" == "0" ]] && ok=0
-check 24 "document gone for owner and group member, access row cascaded (404/404, 0 rows)" "$ok" "alice=$alice_delete_view bob=$bob_gone_view access=$access_list_status totalItems=$access_list_total"
+check 27 "document gone for owner and group member, access row cascaded (404/404, 0 rows)" "$ok" "alice=$alice_delete_view bob=$bob_gone_view access=$access_list_status totalItems=$access_list_total"
 
 # --- summary ---------------------------------------------------------------------------
 

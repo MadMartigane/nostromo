@@ -248,3 +248,32 @@ Nostromo contract anymore.
 3. Confirmation that PocketBase accepts client-provided ids, and the exact id pattern.
 4. Whether the core still needs the users-enrichment endpoint, and in what shape.
 5. The exact rejection status code for stale writes.
+
+## 14. File protection
+
+**Decision (2026-09-15).**
+
+- The `file` field of `documents` is **protected**, set by migration `005_document_file_protected.js`
+  (superseding `001_core_collections.js`, which left the field unprotected).
+- A file download therefore requires a short-lived **file token** from `POST /api/files/token`, sent
+  as `?token=...` on the file URL. A plain `Authorization` header on the file URL is not sufficient,
+  and an anonymous request returns `404`.
+
+**Rationale.** A v1 audit showed that the file URL was a capability: an anonymous `GET` of a known
+URL returned `200` with the bytes, regardless of the document's access rules. File reachability is an
+access-control concern and belongs on the server, not on URL obscurity. The audit's remedy, protection
+of the `file` field, reuses the rule engine the core already trusts instead of adding a parallel
+check.
+
+**Consequences.**
+
+- Access stays **view-rule based**: any caller who satisfies the `documents` viewRule receives the
+  file, owner or group-granted reader alike. Existing `document_access` grants keep working with no
+  extra step, and a valid token never bypasses a failing viewRule.
+- File URLs are no longer public. SDKs must fetch a fresh file token (measured at 180 seconds on
+  PocketBase 0.40.4; the response body carries no duration field) before each download instead of
+  treating the URL as a capability.
+- The upload path is unchanged: a multipart `PATCH` on the document record still attaches the file.
+- The end-to-end contract check asserts the protected download (file token, byte comparison) and
+  guards against regression (anonymous download `404`); the SDK integration guide documents the new
+  contract.
