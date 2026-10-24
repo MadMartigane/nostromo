@@ -543,8 +543,8 @@ Requirements:
 
 - Send the file token as the `?token=` query parameter. A plain `Authorization` header on the file
   URL is **not** sufficient and returns `404`; do not build a header-based fallback.
-- The token is **short-lived** (180 seconds observed on PocketBase 0.40.4). Fetch a fresh token for
-  each download, never cache one beyond its life, and never log or persist it.
+- The token is **short-lived** (`exp` of 180 seconds observed in an earlier probe on PocketBase 0.40.4, not re-measured in the 7.2 run). Never cache it
+  beyond one use. Fetch a fresh token for each download, and never log or persist it.
 - A file token never grants access by itself: the server still applies the `documents` viewRule, so
   a valid token issued to a caller without read access returns `404`. An anonymous request with no
   token also returns `404`; with a valid token in `?token=` and no header it succeeds, because the
@@ -590,7 +590,7 @@ Recommended clients:
 
 Rules that apply regardless of the client:
 
-- Verify that your SDK version targets the pinned PocketBase 0.40.x line before relying on it.
+- Verify that your SDK version targets a PocketBase line that passes section 7. The reference is tested on 0.40.x.
 - **Never rely on an SDK feature that is not in this contract** (no auto-cancellation semantics, no
   offline layer, no built-in sync, no admin API helpers). If an SDK offers one, treat it as
   unavailable.
@@ -749,6 +749,52 @@ S3. Uploading a file larger than 20 MiB (e.g. 21 MiB) with a multipart `PATCH` c
     `expectedVersion` returns `400`, with body `data.file.code` `validation_file_size_limit` and
     message `Failed to upload <name> - the maximum allowed file size is 20971520 bytes.` The record
     is left unchanged. **Beyond smoke.sh coverage.**
+
+### 7.2 Results run
+
+Run on PocketBase **0.40.4** (`infra/pocketbase/pocketbase`, served on `127.0.0.1:8090`) on 2026-10-24.
+The server was already running (pid 182977, started by a dev session), so `serve.sh` could not bind the
+port and was not used for this run. `smoke.sh` exited 0 with 27 of 27 checks passing. Items 1 to 27 are
+the smoke run. S1 to S3 were run by hand with `curl`. Re-run this table after any PocketBase upgrade.
+The 0.40.4 version was verified on the on-disk binary, not on the running process.
+
+| #   | Check                                                  | Result | Evidence                                              |
+| --- | ------------------------------------------------------ | ------ | ----------------------------------------------------- |
+| 1   | Health returns 200                                     | pass   | smoke.sh check 1                                      |
+| 2   | Superuser authenticates                                | pass   | smoke.sh check 2                                      |
+| 3   | First invite: userId, created true, password           | pass   | smoke.sh check 3                                      |
+| 4   | Second invite: same userId, created false, no password | pass   | smoke.sh check 4                                      |
+| 5   | Invited user authenticates                             | pass   | smoke.sh check 5                                      |
+| 6   | Create document with client id, owner, version 1       | pass   | smoke.sh check 6                                      |
+| 7   | Duplicate create with same id returns 400              | pass   | smoke.sh check 7                                      |
+| 8   | Second user invited and authenticated                  | pass   | smoke.sh check 8                                      |
+| 9   | Second user GET on first user's document returns 404   | pass   | smoke.sh check 9                                      |
+| 10  | Second user list on that id returns totalItems 0       | pass   | smoke.sh check 10                                     |
+| 11  | Superuser creates group and read access row            | pass   | smoke.sh check 11                                     |
+| 12  | Reader GET returns 200 with version 1                  | pass   | smoke.sh check 12                                     |
+| 13  | Reader PATCH with expectedVersion 1 returns 404        | pass   | smoke.sh check 13                                     |
+| 14  | Owner PATCH with expectedVersion 1 returns 200, v2     | pass   | smoke.sh check 14                                     |
+| 15  | Owner stale PATCH with expectedVersion 1 returns 409   | pass   | smoke.sh check 15                                     |
+| 16  | Access flipped to write, reader PATCH returns 200, v3  | pass   | smoke.sh check 16                                     |
+| 17  | Owner multipart upload with string expectedVersion     | pass   | smoke.sh check 17                                     |
+| 18  | Owner file via `?token=` returns identical bytes       | pass   | smoke.sh check 18                                     |
+| 19  | Group reader file via own token returns identical bytes | pass   | smoke.sh check 19                                     |
+| 20  | Unrelated user's valid token on file returns 404       | pass   | smoke.sh check 20                                     |
+| 21  | Anonymous file GET returns 404                         | pass   | smoke.sh check 21                                     |
+| 22  | Enrich with a readable owner returns that user's name  | pass   | smoke.sh check 22                                     |
+| 23  | Enrich with unrelated id returns empty users           | pass   | smoke.sh check 23                                     |
+| 24  | Unauthenticated create returns 400                     | pass   | smoke.sh check 24                                     |
+| 25  | Read-only user DELETE returns 404                      | pass   | smoke.sh check 25                                     |
+| 26  | Owner DELETE with access row returns 204               | pass   | smoke.sh check 26                                     |
+| 27  | After delete, 404 for both, access row cascaded        | pass   | smoke.sh check 27                                     |
+| S1  | Invite with no Authorization returns 401 (body match)  | pass   | curl, status 401, same body as spec                   |
+| S2  | Enrich with no Authorization returns 401 (body match)  | pass   | curl, status 401, same body as spec                   |
+| S3  | Upload of 21 MiB returns 400 `validation_file_size_limit` | pass | curl, status 400, record re-read, version and updated unchanged |
+
+Notes:
+
+- The file token lifetime (180 s) and `auth-refresh` presence were not measured in this run. They are
+  T1 step 0 items and belong to the app repo's probe.
 
 ---
 

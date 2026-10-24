@@ -110,9 +110,10 @@ exist.
 
 **Decision.**
 
-- Server-authoritative. PocketBase's native `updated` field is the version reference.
-- A generic server-side check rejects stale writes. The exact status code is confirmed in phase 4.
-  The contract today is "a stale write is rejected", not a specific code.
+- Server-authoritative. The conflict token is the numeric `version` field (starts at 1, +1 per
+  accepted write). `updated` is never the conflict token.
+- A generic server-side check rejects stale writes with status 409, which is confirmed. The document
+  is left unchanged.
 - The client keeps last-write-wins only for automatic merge and must handle the rejection: re-pull,
   re-apply, or surface the conflict to the user.
 - The app no longer maintains its own numeric `updatedAt`/`deletedAt` clock fields for the server
@@ -125,7 +126,7 @@ are not the core's to define: whether a payload says "deleted" is payload conten
 
 **Consequences.**
 
-- Every app write is checked against the server `updated` of the targeted document.
+- Every app write is checked against the numeric `version` of the targeted document.
 - Every app must implement one rejection path: re-pull, re-apply, or a user-facing conflict.
 
 ## 7. Routes (drift D4)
@@ -176,14 +177,16 @@ kind, see the reclassification section.
 
 **Decision.**
 
-- PocketBase pinned to the latest stable (0.40.4 at the time of writing), single Go binary, one
-  `pb_data` directory to persist.
+- PocketBase is tested on 0.40.4 (the latest stable at the time of writing). It is a default, not a
+  lock: upgrade by bumping `VERSION` in `download.sh` once the acceptance checklist passes and
+  migrations and hooks still load. Single Go binary,
+  one `pb_data` directory to persist.
 - One shared instance for all apps. Isolation between apps is by user: each app uses different
   users.
 - Target host: the existing server serving marius.click, behind nginx.
 - Server-side configuration (nginx, TLS, per-app path mount, CORS in production) is out of this
   repo and will be done later as a server configuration step.
-- What stays in this repo: the pinned version, local launch scripts, dev CORS, and a short
+- What stays in this repo: the tested version and its download script, local launch scripts, dev CORS, and a short
   deployment note documenting the target, the shared-instance choice, and the automatic backup of
   `pb_data`.
 - Automatic backups of `pb_data` (native PocketBase capability) plus an off-machine copy.
@@ -242,12 +245,12 @@ Nostromo contract anymore.
 
 ## 13. Open items to validate in phase 4
 
-1. PocketBase `updated` precision and the tie-break rule when values are equal.
+1. PocketBase `updated` precision and the tie-break rule when values are equal. Resolved: the conflict token is the numeric `version`, so `updated` precision no longer matters (section 6).
 2. The exact API-rule form that prevents the cross-row access leak, with read right and group
    membership evaluated on the same row.
 3. Confirmation that PocketBase accepts client-provided ids, and the exact id pattern.
 4. Whether the core still needs the users-enrichment endpoint, and in what shape.
-5. The exact rejection status code for stale writes.
+5. The exact rejection status code for stale writes. Resolved: stale writes are rejected with 409, confirmed (section 6).
 
 ## 14. File protection
 

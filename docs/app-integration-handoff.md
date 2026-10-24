@@ -37,8 +37,9 @@ following.
 
 **Changed:**
 
-- **Version tracking is per document**, against the server `updated` field. The app no longer
-  maintains numeric `updatedAt`/`deletedAt` clock fields for the server contract.
+- **Version tracking is per document**, against the numeric `version` field (starts at 1, +1 per
+  accepted write). `updated` is informational and used only for incremental pulls. The app no
+  longer maintains numeric `updatedAt`/`deletedAt` clock fields for the server contract.
 - **Stale writes are rejected** by a server-side check. The app must handle the rejection:
   re-pull, re-apply, or surface the conflict to the user. Last-write-wins survives only as the
   automatic merge rule when no rejection is involved.

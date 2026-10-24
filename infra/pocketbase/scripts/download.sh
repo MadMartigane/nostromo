@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Download the pinned PocketBase binary into infra/pocketbase/.
+# Download the tested default PocketBase binary into infra/pocketbase/.
 #
 # The binary is gitignored and must never be committed. Running this script
-# twice in a row is a no-op when the binary already reports the pinned version.
+# twice in a row is a no-op when the binary already reports the tested default version.
 set -euo pipefail
 
 readonly VERSION="0.40.4"

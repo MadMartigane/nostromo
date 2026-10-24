@@ -24,7 +24,7 @@ Two paths exist at runtime but are **never committed** (see `.gitignore`):
 Run from the repository root:
 
 ```bash
-# 1. Fetch the pinned PocketBase binary (once, skipped if already present)
+# 1. Fetch the tested default PocketBase binary (once, skipped if already present)
 bash infra/pocketbase/scripts/download.sh
 
 # 2. Start the instance on 127.0.0.1:8090 (applies migrations, loads hooks)

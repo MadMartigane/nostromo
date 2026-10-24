@@ -18,7 +18,8 @@ configuration (section 9).
 
 ## 2. Verified facts (checked against PocketBase v0.40.4 source)
 
-- Latest stable release is **0.40.4** (checked 2026-09-14). Pin it in `download.sh`.
+- Latest stable release was **0.40.4** (checked 2026-09-14). `download.sh` downloads it for testing.
+  0.40.4 is the default tested version, not a lock: bump `VERSION` in `download.sh` to upgrade.
 - **Client-provided ids are accepted.** The system `id` field is a text field with `min: 15`,
   `max: 15`, pattern `^[a-z0-9]+$`, and `autogeneratePattern: [a-z0-9]{15}`. The autogenerator only
   fills the value when it is empty (`core/field_text.go`, `hasZeroValue && IsNew`). A client-sent id

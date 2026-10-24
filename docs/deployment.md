@@ -9,7 +9,7 @@
 Nostromo ships a single Go binary and one data directory. The operational surface is small, but two
 kinds of change must not be confused:
 
-- **In this repository**: the pinned PocketBase version, the local launch scripts, the dev CORS
+- **In this repository**: the PocketBase version used by the download script, the local launch scripts, the dev CORS
   setting, the migrations and hooks, and this note.
 - **Out of this repository**: the server-side configuration. The nginx blocks, the TLS
   certificates, the reverse-proxy mounts and the production CORS posture are a separate server
@@ -49,11 +49,14 @@ configuration is needed at all. Cross-origin access is a local-development conce
 limited to the local serve script: `serve.sh` passes `--origins http://localhost:3000` and
 `--origins http://127.0.0.1:3000` for the dev frontend. Production must not replicate that.
 
-## 4. Pinned version and persistence
+## 4. Tested version and persistence
 
-- **Version**: PocketBase **0.40.4** (the latest stable release checked on 2026-09-14, see
-  `docs/phase-4-plan.md` section 2). `infra/pocketbase/scripts/download.sh` pins it and skips the
-  download when the binary already reports the pinned version. The binary itself is never committed.
+- **Version**: the project is tested on PocketBase **0.40.4** (the latest stable release checked on
+  2026-09-14, see `docs/phase-4-plan.md` section 2). `infra/pocketbase/scripts/download.sh` downloads
+  that version and skips the download when the binary already reports it. The binary itself is never
+  committed. 0.40.4 is the default tested version, not a lock. Upgrading is a deliberate, manual step: bump `VERSION` in `download.sh` to the new stable release, rerun it, and accept it when
+  the acceptance checklist (`docs/sdk-integration-guide.md` section 7 and 7.1) passes and the
+  migrations and hooks in `pb_migrations/` and `pb_hooks/` load without error at startup.
 - **Persistence**: everything that must survive a restart lives in `pb_data/` (SQLite database,
   uploaded files, settings). `pb_data/` is gitignored and is the only backup target. The instance is
   started with migrations and hooks pointed at the repository directories and `--automigrate=0`, so
@@ -85,4 +88,4 @@ Restore is deliberately simple:
    directories.
 
 No schema migration step is involved: the backup already contains the applied schema, and the
-migrations in the repository match the pinned version.
+migrations in the repository match the PocketBase version the instance runs.
